@@ -1,0 +1,7 @@
+Timestamp,Input,Model,Prediction,Confidence
+2026-07-11 15:30:22,President announces new trade tariffs targeting semiconductor...,Logistic Regression,Real,0.8924
+2026-07-11 15:45:10,Scientists discover secret alien base under the Antarctic ice...,Random Forest,Fake,0.9412
+2026-07-11 16:15:35,New vaccine trial shows 98% efficacy against standard flu...,Neural Network,Real,0.8145
+2026-07-11 22:28:05,The Reserve Bank of India kept its benchmark repo rate uncha...,Logistic Regression,Real,0.5905
+2026-07-11 22:31:17,The Reserve Bank of India kept its benchmark repo rate uncha...,Logistic Regression,Real,0.5905
+2026-07-11 22:32:40,BREAKING: Scientists confirm that drinking one cup of this c...,Logistic Regression,Fake,0.8827

@@ -1,0 +1,4 @@
+# Mark all generated HTML files as linguist-generated to exclude them from language statistics
+*.html linguist-generated=true
+assets/sample_explanations/*.html linguist-generated=true
+results/graphs/*.html linguist-generated=true
