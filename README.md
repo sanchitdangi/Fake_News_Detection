@@ -79,6 +79,8 @@ In our benchmarks, **Logistic Regression (TF-IDF)** achieves a slightly higher A
 ### 2. Known Limitations & Behaviors
 * **Discrete KNN Confidence Steps**: Because the KNN model uses $K=5$ neighbors, its probability predictions are discrete steps ($0.0$, $0.2$, $0.4$, $0.6$, $0.8$, $1.0$). Consequently, confidence scores for KNN predictions will show static steps rather than a continuous curve.
 * **Real-News Low-Confidence Pattern**: Verified real news articles containing direct quotes from political figures frequently trigger lower classifier confidence (50-60%). The models associate quoted political phrases with "Fake News" training indicators, pulling the prediction probability closer to the decision boundary.
+* **DistilBERT Offline on Live Deployment**: The fine-tuned DistilBERT model weights (~268 MB) are excluded from the GitHub repository due to file-size limits, and `torch`/`transformers` are excluded from `requirements.txt` due to Streamlit Community Cloud memory constraints. On the live deployment, selecting DistilBERT in the inference dropdown shows a clear ⚠️ unavailable notice rather than running live inference, and its row in the Cross-Model Consensus Comparison table displays `—` for Prediction and Confidence. All DistilBERT performance figures shown in the app (Accuracy: 69.45%, AUC: 0.7847, F1: 0.6079) reflect its original offline test-set evaluation. See the **[Streamlit Community Cloud Deployment](#-streamlit-community-cloud-deployment)** section for technical options (Git LFS, Hugging Face Hub) to enable live DistilBERT inference on the deployed version.
+
 
 ---
 
