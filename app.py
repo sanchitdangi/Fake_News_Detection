@@ -7,8 +7,13 @@ import streamlit as st
 from streamlit.components.v1 import html
 import pandas as pd
 import numpy as np
-import torch
-from transformers import DistilBertTokenizerFast, DistilBertForSequenceClassification
+# Try loading torch and transformers dynamic modules safely to support fallback mode without start errors
+try:
+    import torch
+    from transformers import DistilBertTokenizerFast, DistilBertForSequenceClassification
+    TRANSFORMERS_AVAILABLE = True
+except ImportError:
+    TRANSFORMERS_AVAILABLE = False
 from lime.lime_text import LimeTextExplainer
 from sklearn.pipeline import make_pipeline
 
@@ -123,6 +128,8 @@ def load_traditional_models(mtime):
 
 @st.cache_resource
 def load_bert_model():
+    if not TRANSFORMERS_AVAILABLE:
+        return None, None
     bert_dir = "models/distilbert_fake_news"
     if not os.path.exists(bert_dir):
         return None, None
