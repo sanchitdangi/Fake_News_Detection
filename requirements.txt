@@ -9,11 +9,6 @@ seaborn>=0.11.0
 python-docx>=0.8.11
 fpdf2>=2.7.0
 python-pptx>=0.6.21
-# CPU-only PyTorch build (~350MB vs ~2GB for the full build) — required for Streamlit Cloud
---extra-index-url https://download.pytorch.org/whl/cpu
-torch==2.1.0+cpu
-transformers>=4.20.0
-accelerate>=0.20.0
 lime>=0.2.0
 streamlit>=1.15.0
 openpyxl>=3.0.0
