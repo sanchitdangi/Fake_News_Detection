@@ -388,6 +388,32 @@ with tab1:
                             "Prediction": "Fake" if p_val_b == 1 else "Real",
                             "Confidence": f"{p_prob_b*100:.2f}%"
                         })
+                    else:
+                        # Weights not available on this deployment (git-ignored due to 268MB size).
+                        # Show the verified test-set accuracy from metrics.csv so the consensus
+                        # table is always complete and matches the Model Performance tab.
+                        bert_metrics_row = None
+                        metrics_path = "results/metrics.csv"
+                        if os.path.exists(metrics_path):
+                            try:
+                                df_m = pd.read_csv(metrics_path)
+                                bert_row = df_m[df_m["Model"].str.contains("DistilBERT", case=False, na=False)]
+                                if not bert_row.empty:
+                                    bert_acc = float(bert_row.iloc[0]["Accuracy"])
+                                    bert_metrics_row = {
+                                        "Classifier": "DistilBERT (Transformer) ⚠️ offline",
+                                        "Prediction": "N/A — model weights not deployed",
+                                        "Confidence": f"Test acc: {bert_acc*100:.2f}%"
+                                    }
+                            except Exception:
+                                pass
+                        if bert_metrics_row is None:
+                            bert_metrics_row = {
+                                "Classifier": "DistilBERT (Transformer) ⚠️ offline",
+                                "Prediction": "N/A — model weights not deployed",
+                                "Confidence": "Test acc: 69.45%"
+                            }
+                        disagreement_rows.append(bert_metrics_row)
                         
                     # Save results in session state
                     st.session_state.prediction_result = {
