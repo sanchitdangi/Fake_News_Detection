@@ -237,10 +237,10 @@ with tab1:
             label_visibility="collapsed"
         )
         
-        # Configuration parameters
-        model_options = ["Logistic Regression", "KNN", "Random Forest", "Neural Network"]
-        if model_bert is not None:
-            model_options.append("DistilBERT (Transformer)")
+        # Configuration parameters — always list DistilBERT so the UI is consistent
+        # with the Model Performance tab. Live inference is intercepted below when weights
+        # are unavailable (model_bert is None).
+        model_options = ["Logistic Regression", "KNN", "Random Forest", "Neural Network", "DistilBERT (Transformer)"]
             
         selected_model = st.selectbox(
             "Target Classification Model:",
@@ -321,122 +321,117 @@ with tab1:
         
         # Trigger Inference and store state
         if predict_btn and input_text.strip() != "":
-            try:
-                with st.spinner("Analyzing text and running explainability vectorization..."):
-                    vectorizer = models_payload["vectorizer"]
-                    
-                    # 1. Run inference for selected model
-                    if selected_model == "DistilBERT (Transformer)":
-                        inputs = tokenizer_bert(input_text, truncation=True, padding=True, max_length=128, return_tensors="pt")
-                        with torch.no_grad():
-                            outputs = model_bert(**inputs)
-                            probs = torch.softmax(outputs.logits, dim=1).numpy()[0]
-                        pred_class = int(np.argmax(probs))
-                        confidence = probs[pred_class]
-                    else:
-                        if selected_model == "Logistic Regression":
-                            model = models_payload["logistic_regression"]
-                        elif selected_model == "KNN":
-                            model = models_payload["knn"]
-                        elif selected_model == "Random Forest":
-                            model = models_payload["random_forest"]
+            # --- Part 1 fix: intercept DistilBERT selection when weights are not loaded ---
+            if selected_model == "DistilBERT (Transformer)" and model_bert is None:
+                st.warning(
+                    "**DistilBERT inference is unavailable on this deployment.** "
+                    "The fine-tuned model weights (~268 MB) are excluded from the GitHub "
+                    "repository due to file-size limits and have not been loaded on this server. "
+                    "\n\nTo review DistilBERT's offline evaluation results (Accuracy: 69.45%, "
+                    "AUC: 0.7847, F1: 0.6079), switch to the "
+                    "**Model Performance & Analytics** tab."
+                )
+            else:
+                try:
+                    with st.spinner("Analyzing text and running explainability vectorization..."):
+                        vectorizer = models_payload["vectorizer"]
+                        
+                        # 1. Run inference for selected model
+                        if selected_model == "DistilBERT (Transformer)":
+                            inputs = tokenizer_bert(input_text, truncation=True, padding=True, max_length=128, return_tensors="pt")
+                            with torch.no_grad():
+                                outputs = model_bert(**inputs)
+                                probs = torch.softmax(outputs.logits, dim=1).numpy()[0]
+                            pred_class = int(np.argmax(probs))
+                            confidence = probs[pred_class]
                         else:
-                            model = models_payload["neural_network"]
+                            if selected_model == "Logistic Regression":
+                                model = models_payload["logistic_regression"]
+                            elif selected_model == "KNN":
+                                model = models_payload["knn"]
+                            elif selected_model == "Random Forest":
+                                model = models_payload["random_forest"]
+                            else:
+                                model = models_payload["neural_network"]
+                                
+                            features = vectorizer.transform([input_text])
+                            probs = model.predict_proba(features)[0]
+                            pred_class = int(model.predict(features)[0])
+                            confidence = probs[pred_class]
+                        
+                        # 2. Get LIME HTML content
+                        lime_html = None
+                        if selected_model != "DistilBERT (Transformer)":
+                            if selected_model == "Logistic Regression":
+                                clf = models_payload["logistic_regression"]
+                            elif selected_model == "KNN":
+                                clf = models_payload["knn"]
+                            elif selected_model == "Random Forest":
+                                clf = models_payload["random_forest"]
+                            else:
+                                clf = models_payload["neural_network"]
+                            lime_pipeline = make_pipeline(vectorizer, clf)
+                            explainer = LimeTextExplainer(class_names=["Real", "Fake"])
+                            exp = explainer.explain_instance(input_text, lime_pipeline.predict_proba, num_features=8)
+                            lime_html = exp.as_html()
                             
-                        features = vectorizer.transform([input_text])
-                        probs = model.predict_proba(features)[0]
-                        pred_class = int(model.predict(features)[0])
-                        confidence = probs[pred_class]
-                    
-                    # 2. Get LIME HTML content
-                    lime_html = None
-                    if selected_model != "DistilBERT (Transformer)":
-                        if selected_model == "Logistic Regression":
-                            clf = models_payload["logistic_regression"]
-                        elif selected_model == "KNN":
-                            clf = models_payload["knn"]
-                        elif selected_model == "Random Forest":
-                            clf = models_payload["random_forest"]
+                        # 3. Calculate model disagreement metrics
+                        disagreement_rows = []
+                        for name in ["Logistic Regression", "KNN", "Random Forest", "Neural Network"]:
+                            clf_model = models_payload[name.lower().replace(" ", "_")]
+                            feats = vectorizer.transform([input_text])
+                            p_val = int(clf_model.predict(feats)[0])
+                            p_prob = clf_model.predict_proba(feats)[0][p_val]
+                            disagreement_rows.append({
+                                "Classifier": name,
+                                "Prediction": "Fake" if p_val == 1 else "Real",
+                                "Confidence": f"{p_prob*100:.2f}%"
+                            })
+                        if model_bert is not None:
+                            inputs_b = tokenizer_bert(input_text, truncation=True, padding=True, max_length=128, return_tensors="pt")
+                            with torch.no_grad():
+                                outputs_b = model_bert(**inputs_b)
+                                probs_b = torch.softmax(outputs_b.logits, dim=1).numpy()[0]
+                            p_val_b = int(np.argmax(probs_b))
+                            p_prob_b = probs_b[p_val_b]
+                            disagreement_rows.append({
+                                "Classifier": "DistilBERT (Transformer)",
+                                "Prediction": "Fake" if p_val_b == 1 else "Real",
+                                "Confidence": f"{p_prob_b*100:.2f}%"
+                            })
                         else:
-                            clf = models_payload["neural_network"]
-                        lime_pipeline = make_pipeline(vectorizer, clf)
-                        explainer = LimeTextExplainer(class_names=["Real", "Fake"])
-                        exp = explainer.explain_instance(input_text, lime_pipeline.predict_proba, num_features=8)
-                        lime_html = exp.as_html()
-                        
-                    # 3. Calculate model disagreement metrics
-                    disagreement_rows = []
-                    for name in ["Logistic Regression", "KNN", "Random Forest", "Neural Network"]:
-                        clf_model = models_payload[name.lower().replace(" ", "_")]
-                        feats = vectorizer.transform([input_text])
-                        p_val = int(clf_model.predict(feats)[0])
-                        p_prob = clf_model.predict_proba(feats)[0][p_val]
-                        disagreement_rows.append({
-                            "Classifier": name,
-                            "Prediction": "Fake" if p_val == 1 else "Real",
-                            "Confidence": f"{p_prob*100:.2f}%"
-                        })
-                    if model_bert is not None:
-                        inputs_b = tokenizer_bert(input_text, truncation=True, padding=True, max_length=128, return_tensors="pt")
-                        with torch.no_grad():
-                            outputs_b = model_bert(**inputs_b)
-                            probs_b = torch.softmax(outputs_b.logits, dim=1).numpy()[0]
-                        p_val_b = int(np.argmax(probs_b))
-                        p_prob_b = probs_b[p_val_b]
-                        disagreement_rows.append({
-                            "Classifier": "DistilBERT (Transformer)",
-                            "Prediction": "Fake" if p_val_b == 1 else "Real",
-                            "Confidence": f"{p_prob_b*100:.2f}%"
-                        })
-                    else:
-                        # Weights not available on this deployment (git-ignored due to 268MB size).
-                        # Show the verified test-set accuracy from metrics.csv so the consensus
-                        # table is always complete and matches the Model Performance tab.
-                        bert_metrics_row = None
-                        metrics_path = "results/metrics.csv"
-                        if os.path.exists(metrics_path):
-                            try:
-                                df_m = pd.read_csv(metrics_path)
-                                bert_row = df_m[df_m["Model"].str.contains("DistilBERT", case=False, na=False)]
-                                if not bert_row.empty:
-                                    bert_acc = float(bert_row.iloc[0]["Accuracy"])
-                                    bert_metrics_row = {
-                                        "Classifier": "DistilBERT (Transformer) ⚠️ offline",
-                                        "Prediction": "N/A — model weights not deployed",
-                                        "Confidence": f"Test acc: {bert_acc*100:.2f}%"
-                                    }
-                            except Exception:
-                                pass
-                        if bert_metrics_row is None:
-                            bert_metrics_row = {
+                            # Part 2 fix: weights not available — use "—" for both Prediction
+                            # and Confidence so no aggregate metric contaminates the per-input
+                            # probability column. The offline test-set note is rendered as a
+                            # caption below the table instead.
+                            disagreement_rows.append({
                                 "Classifier": "DistilBERT (Transformer) ⚠️ offline",
-                                "Prediction": "N/A — model weights not deployed",
-                                "Confidence": "Test acc: 69.45%"
-                            }
-                        disagreement_rows.append(bert_metrics_row)
+                                "Prediction": "—",
+                                "Confidence": "—"
+                            })
+                            
+                        # Save results in session state
+                        st.session_state.prediction_result = {
+                            "text": input_text,
+                            "model": selected_model,
+                            "pred_class": pred_class,
+                            "confidence": confidence,
+                            "lime_html": lime_html,
+                            "disagreement_df": pd.DataFrame(disagreement_rows)
+                        }
                         
-                    # Save results in session state
-                    st.session_state.prediction_result = {
-                        "text": input_text,
-                        "model": selected_model,
-                        "pred_class": pred_class,
-                        "confidence": confidence,
-                        "lime_html": lime_html,
-                        "disagreement_df": pd.DataFrame(disagreement_rows)
-                    }
-                    
-                    # 4. Audit Log output to local file
-                    log_data = pd.DataFrame([{
-                        "Timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        "Input": input_text[:60].replace("\n", " ") + "...",
-                        "Model": selected_model,
-                        "Prediction": "Fake" if pred_class == 1 else "Real",
-                        "Confidence": round(confidence, 4)
-                    }])
-                    log_data.to_csv(log_file, mode='a', header=False, index=False)
-                        
-            except Exception as e:
-                st.error(f"Inference process aborted: {str(e)}")
+                        # 4. Audit Log output to local file
+                        log_data = pd.DataFrame([{
+                            "Timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            "Input": input_text[:60].replace("\n", " ") + "...",
+                            "Model": selected_model,
+                            "Prediction": "Fake" if pred_class == 1 else "Real",
+                            "Confidence": round(confidence, 4)
+                        }])
+                        log_data.to_csv(log_file, mode='a', header=False, index=False)
+                            
+                except Exception as e:
+                    st.error(f"Inference process aborted: {str(e)}")
                 
         # Render prediction state from session state
         res = st.session_state.prediction_result
@@ -470,6 +465,23 @@ with tab1:
             # Model disagreement view
             st.subheader("Cross-Model Consensus Comparison", divider="blue")
             st.dataframe(res["disagreement_df"], use_container_width=True)
+            # Part 2: show DistilBERT offline note below the table only when weights are absent,
+            # so the aggregate test-set accuracy is clearly separated from the per-input confidence column.
+            if model_bert is None:
+                bert_acc_display = "69.45%"
+                try:
+                    df_m2 = pd.read_csv("results/metrics.csv")
+                    bert_row2 = df_m2[df_m2["Model"].str.contains("DistilBERT", case=False, na=False)]
+                    if not bert_row2.empty:
+                        bert_acc_display = f"{float(bert_row2.iloc[0]['Accuracy'])*100:.2f}%"
+                except Exception:
+                    pass
+                st.caption(
+                    f"⚠️ **DistilBERT** is not available for live inference on this deployment "
+                    f"(model weights excluded from repository due to file-size limits). "
+                    f"Its verified offline test-set accuracy was **{bert_acc_display}** — "
+                    f"see the **Model Performance & Analytics** tab for its full evaluation metrics."
+                )
             
             # LIME explanations
             st.subheader("Local Interpretable Explanations (LIME)", divider="blue")
