@@ -87,24 +87,70 @@ In our benchmarks, **Logistic Regression (TF-IDF)** achieves a slightly higher A
 ## 🚀 Step-by-Step Installation & Usage
 
 ### Prerequisites
-* Windows OS (PowerShell enabled)
+* Python 3.9 or later
 * Git installed
+* (Windows automation path only) PowerShell 5.1 or later
 
-### Local Setup & Execution
+### Option A — Windows Automated Setup (PowerShell)
+The `setup_and_run.ps1` script fully automates every step: it detects or installs a portable Miniconda environment, installs all dependencies, downloads and merges the datasets, trains all models, generates charts, and compiles the PDF/DOCX/PPTX reports.
+
 1. Clone the repository:
    ```powershell
    git clone <repository-url>
    cd Fake_News_Detection
    ```
-2. Run the master automation script to set up a portable Miniconda environment, download/merge datasets, train all models, generate charts, and compile reports:
+2. Run the master automation script:
    ```powershell
    ./setup_and_run.ps1
    ```
-   *Note: This script will run the full training pipeline locally. DistilBERT weights will be generated and saved under `models/distilbert_fake_news/`.*
+   *Note: DistilBERT weights will be generated and saved under `models/distilbert_fake_news/` on completion.*
 
-3. Start the interactive Streamlit Dashboard:
+3. Launch the interactive Streamlit dashboard:
    ```powershell
    ./miniconda/Scripts/streamlit.exe run app.py
+   ```
+
+### Option B — Standard Setup (macOS / Linux / Windows)
+Use this path when running outside PowerShell or on a non-Windows system. Each step mirrors exactly what `setup_and_run.ps1` orchestrates internally.
+
+1. Clone the repository:
+   ```bash
+   git clone <repository-url>
+   cd Fake_News_Detection
+   ```
+2. Create and activate a virtual environment:
+   ```bash
+   # macOS / Linux
+   python3 -m venv venv
+   source venv/bin/activate
+
+   # Windows (Command Prompt or PowerShell)
+   python -m venv venv
+   venv\Scripts\activate
+   ```
+3. Install all dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+4. Download and merge the Kaggle + LIAR datasets:
+   ```bash
+   python download_dataset.py
+   ```
+5. Train all models and fine-tune DistilBERT:
+   ```bash
+   python run_pipeline.py
+   ```
+6. Generate evaluation plots (ROC, accuracy, confusion matrices):
+   ```bash
+   python draw_plots.py
+   ```
+7. Compile academic reports (DOCX, PDF, PPTX):
+   ```bash
+   python generate_reports.py
+   ```
+8. Launch the interactive Streamlit dashboard:
+   ```bash
+   streamlit run app.py
    ```
 
 ---
